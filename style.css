@@ -1,0 +1,74 @@
+body {
+    background-color: #121212; /* Deep dark background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: sans-serif;
+    margin: 0;
+}
+
+.card-container {
+    width: 300px;
+    height: 400px;
+    position: relative;
+    border-radius: 16px;
+    cursor: pointer;
+    
+    /* CRITICAL MOBILE FIXES */
+    user-select: none;           /* Prevent text highlighting */
+    -webkit-user-select: none;   /* Safari support */
+    -webkit-touch-callout: none; /* Prevent iOS popup menu on long press */
+}
+
+.card-face {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border-radius: 16px;
+    text-align: center;
+    color: #ffffff;
+    box-sizing: border-box;
+    padding: 20px;
+    
+    /* Smooth fade transition */
+    transition: opacity 0.15s ease-in-out;
+}
+
+/* Styling the front (Hidden State) */
+.card-front {
+    background-color: #2a2a35; /* Dark gray */
+    border: 2px solid #444;
+    opacity: 1;
+    z-index: 2;
+}
+
+/* Styling the back (Revealed State) */
+.card-back {
+    background-color: #8b0000; /* Dark red for Mafia */
+    border: 2px solid #ff4444;
+    opacity: 0;
+    z-index: 1;
+}
+
+/* --- THE TOGGLE CLASS --- */
+/* When JS adds the 'revealed' class to the container, swap opacities */
+.card-container.revealed .card-front {
+    opacity: 0;
+    z-index: 1;
+}
+
+.card-container.revealed .card-back {
+    opacity: 1;
+    z-index: 2;
+}
+
+.role-title {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+}
