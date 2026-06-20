@@ -2,22 +2,684 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mafia Game</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mafia - Mobile UI Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            overflow: hidden;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #app-container {
+            max-width: 450px;
+            margin: 0 auto;
+            height: 100vh;
+            background-color: #0f172a;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        .screen {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            padding: 24px;
+            overflow-y: auto;
+        }
+        .screen.active {
+            display: flex;
+        }
+
+        .card-container {
+            width: 100%;
+            height: 400px;
+            position: relative;
+            border-radius: 16px;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 16px;
+            text-align: center;
+            padding: 24px;
+            transition: opacity 0.2s ease-in-out, transform 0.1s;
+        }
+        .card-front { background-color: #1e293b; border: 2px solid #334155; opacity: 1; z-index: 2; }
+        .card-back { background-color: #7f1d1d; border: 2px solid #ef4444; opacity: 0; z-index: 1; }
+        .card-container.revealed .card-front { opacity: 0; z-index: 1; }
+        .card-container.revealed .card-back { opacity: 1; z-index: 2; }
+        .card-container:active { transform: scale(0.98); }
+
+        #screen-table {
+            padding: 0;
+        }
+        
+        #table-content {
+            padding: 24px;
+            flex-grow: 1;
+            overflow-y: auto;
+        }
+
+        .players-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 16px;
+        }
+        
+        .player-node {
+            background-color: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            pointer-events: auto;
+        }
+        
+        .player-node.selectable {
+            border-color: #3b82f6;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+            cursor: pointer;
+        }
+        
+        .player-node.selected {
+            background-color: #7f1d1d !important;
+            border-color: #ef4444;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.4);
+            transform: scale(1.05);
+        }
+
+        .player-node.dead {
+            opacity: 0.4;
+            pointer-events: none;
+            filter: grayscale(100%);
+        }
+
+        .hold-action-btn {
+            position: relative;
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        
+        .hold-action-btn:active {
+            transform: scale(0.95);
+        }
+
+        .hold-action-btn::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 100%;
+            width: 0%;
+            background-color: rgba(255, 255, 255, 0.2);
+            transition: width 1.5s linear; 
+            z-index: 1;
+        }
+        
+        .hold-action-btn.holding::after {
+            width: 100%;
+        }
+        
+        .hold-action-btn > * {
+            position: relative;
+            z-index: 2;
+        }
+    </style>
 </head>
 <body>
-    <div class="card-container" id="roleCard">
-    <div class="card-face card-front">
-        <h2>Hold to Reveal</h2>
-        <p>Keep your screen hidden!</p>
+
+<div id="app-container">
+
+    <!-- 1. LOBBY SCREEN -->
+    <div id="screen-lobby" class="screen active">
+        <div class="text-center mb-8 mt-12">
+            <h1 class="text-4xl font-bold tracking-widest text-red-500 mb-2">MAFIA</h1>
+            <p class="text-slate-400">Room Code: <span class="font-mono text-white font-bold tracking-widest">X7B9</span></p>
+        </div>
+
+        <div class="flex-grow">
+            <h3 class="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wider">Players (6/8)</h3>
+            <ul id="lobby-player-list" class="space-y-2">
+                <!-- Populated by JS -->
+            </ul>
+            
+            <div class="mt-6 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-inner">
+                <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Voting Time Limit</label>
+                <select id="vote-timer-select" class="w-full bg-slate-900 border border-slate-700 text-white rounded-lg p-3 outline-none focus:border-red-500">
+                    <option value="15">15 Seconds</option>
+                    <option value="30" selected>30 Seconds</option>
+                    <option value="60">60 Seconds</option>
+                    <option value="120">120 Seconds</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="mt-auto pt-6">
+            <button onclick="startGame()" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-6 rounded-xl transition-colors shadow-lg shadow-red-900/50">
+                Start Game
+            </button>
+            <p class="text-center text-xs text-slate-500 mt-4">Only the host can start the game.</p>
+        </div>
     </div>
-    
-    <div class="card-face card-back">
-        <h1 class="role-title">MAFIA</h1>
-        <p>Goal: Eliminate the villagers.</p>
+
+    <!-- 2. ROLE REVEAL SCREEN -->
+    <div id="screen-reveal" class="screen">
+        <div class="text-center mb-6 mt-4">
+            <h2 class="text-xl font-bold">Secret Role</h2>
+            <p class="text-sm text-slate-400 mt-1">Make sure nobody is looking.</p>
+        </div>
+        <div class="flex-grow flex items-center justify-center">
+            <div class="card-container shadow-2xl" id="roleCard">
+                <div class="card-face card-front">
+                    <svg class="w-16 h-16 text-slate-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    <h2 class="text-2xl font-bold mb-2">Hold to Reveal</h2>
+                </div>
+                <div class="card-face card-back" id="role-card-back">
+                    <!-- Injected by JS based on assigned role -->
+                </div>
+            </div>
+        </div>
+        <div class="mt-auto pt-6">
+            <button id="btn-continue-table" onclick="goToTable()" class="w-full bg-slate-700 text-slate-400 font-bold py-4 px-6 rounded-xl transition-colors opacity-50 cursor-not-allowed" disabled>
+                Waiting for others...
+            </button>
+        </div>
     </div>
+
+    <!-- 3. MAIN GAME SCREEN (Grid + Bottom Console) -->
+    <div id="screen-table" class="screen flex-col">
+        
+        <!-- The Grid of Players -->
+        <div id="table-content">
+            <div class="mb-6 text-center">
+                <h2 class="text-xl font-bold text-slate-200 tracking-widest uppercase">Town Members</h2>
+            </div>
+            <div id="players-grid" class="players-grid pb-12">
+                <!-- Nodes injected by JS -->
+            </div>
+        </div>
+
+        <!-- The Bottom Console -->
+        <div id="bottom-console" class="w-full bg-slate-800 border-t-4 border-slate-700 flex flex-col items-center justify-center p-6 text-center z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.3)] transition-colors duration-500 mt-auto">
+            <div id="console-content" class="w-full h-full flex flex-col items-center justify-center max-w-sm mx-auto">
+                <!-- The Phase Timer -->
+                <div id="phase-timer" class="text-4xl font-mono font-black text-white mb-1 drop-shadow-md hidden">--</div>
+                
+                <h3 id="console-title" class="text-xl font-bold text-white mb-2">Phase</h3>
+                <p id="console-desc" class="text-sm text-slate-300 mb-5">Instructions here</p>
+                
+                <!-- Universal Action Button (Sleep / Target / Vote) -->
+                <div id="action-btn" class="hold-action-btn bg-blue-600 text-white font-bold py-4 px-4 rounded-xl w-full text-base hidden">
+                    <span>Hold Action</span>
+                </div>
+                
+                <!-- Fast-forward button for Dead Players -->
+                <button id="next-btn" class="bg-slate-700 hover:bg-slate-600 text-white font-bold py-4 px-4 rounded-xl w-full text-base hidden shadow-lg">
+                    Skip
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. RESULT SCREEN -->
+    <div id="screen-result" class="screen">
+        <div class="flex-grow flex flex-col items-center justify-center text-center">
+            <h1 id="result-title" class="text-5xl font-black mb-4">GAME OVER</h1>
+            <p id="result-desc" class="text-xl text-slate-300">The game has ended.</p>
+        </div>
+        <div class="mt-auto pt-6">
+            <button onclick="location.reload()" class="w-full bg-white text-slate-900 hover:bg-slate-200 font-bold py-4 px-6 rounded-xl transition-colors">
+                Play Again
+            </button>
+        </div>
+    </div>
+
 </div>
-<script src="index.js"></script>
+
+<script>
+    // --- 1. STATE MANAGEMENT ---
+    let players = [
+        { id: 1, name: 'You', isMe: true, isAlive: true, role: null },
+        { id: 2, name: 'Alex', isMe: false, isAlive: true, role: null },
+        { id: 3, name: 'Sam', isMe: false, isAlive: true, role: null },
+        { id: 4, name: 'Jordan', isMe: false, isAlive: true, role: null },
+        { id: 5, name: 'Casey', isMe: false, isAlive: true, role: null },
+        { id: 6, name: 'Taylor', isMe: false, isAlive: true, role: null }
+    ];
+    
+    let currentPhase = 'lobby'; 
+    let selectedTargetId = null;
+    let holdTimeout = null;
+    let votingTimeLimit = 30;
+    let timerInterval = null;
+    let timeRemaining = 0;
+    
+    // --- 2. INITIALIZATION & ROLES ---
+    function renderLobby() {
+        const list = document.getElementById('lobby-player-list');
+        list.innerHTML = players.map(p => `
+            <li class="bg-slate-800 px-4 py-3 rounded-lg flex items-center justify-between border border-slate-700 shadow-sm">
+                <span class="font-medium ${p.isMe ? 'text-white font-bold' : 'text-slate-300'}">${p.name}</span>
+                ${p.isMe ? '<span class="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300">Host</span>' : '<span class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_#22c55e]"></span>'}
+            </li>
+        `).join('');
+    }
+
+    function startGame() {
+        votingTimeLimit = parseInt(document.getElementById('vote-timer-select').value) || 30;
+        const roles = ['mafia', 'villager', 'villager', 'villager', 'villager', 'villager'];
+        roles.sort(() => Math.random() - 0.5); 
+        
+        players.forEach((p, i) => p.role = roles[i]);
+        
+        const myPlayer = players.find(p => p.isMe);
+        const cardBack = document.getElementById('role-card-back');
+        
+        if (myPlayer.role === 'mafia') {
+            cardBack.innerHTML = `
+                <h1 class="text-4xl font-black tracking-widest mb-2 text-white">MAFIA</h1>
+                <p class="text-red-200 font-medium">Goal: Eliminate everyone.</p>
+            `;
+            cardBack.style.backgroundColor = '#7f1d1d';
+        } else {
+            cardBack.innerHTML = `
+                <h1 class="text-4xl font-black tracking-widest mb-2 text-white">VILLAGER</h1>
+                <p class="text-blue-200 font-medium">Goal: Find the Mafia.</p>
+            `;
+            cardBack.style.backgroundColor = '#1e3a8a';
+            cardBack.style.borderColor = '#3b82f6';
+        }
+        
+        showScreen('screen-reveal');
+    }
+
+    // --- 3. REVEAL CARD LOGIC ---
+    const card = document.getElementById('roleCard');
+    function revealCard(e) {
+        if(e.cancelable) e.preventDefault();
+        card.classList.add('revealed');
+        if (navigator.vibrate) navigator.vibrate(50);
+        
+        const btn = document.getElementById('btn-continue-table');
+        btn.disabled = false;
+        btn.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-700', 'text-slate-400');
+        btn.classList.add('bg-white', 'text-slate-900');
+        btn.innerText = "Join the Table";
+    }
+    function hideCard(e) {
+        if(e.cancelable) e.preventDefault();
+        card.classList.remove('revealed');
+    }
+    card.addEventListener('touchstart', revealCard, { passive: false });
+    card.addEventListener('touchend', hideCard);
+    card.addEventListener('touchcancel', hideCard);
+    card.addEventListener('mousedown', revealCard);
+    card.addEventListener('mouseup', hideCard);
+    card.addEventListener('mouseleave', hideCard);
+    card.addEventListener('contextmenu', e => e.preventDefault());
+
+    // --- 4. THE GAME GRID ENGINE ---
+    function goToTable() {
+        showScreen('screen-table');
+        setupTableNodes();
+        startNightPhase(); 
+    }
+
+    function setupTableNodes() {
+        const container = document.getElementById('players-grid');
+        container.innerHTML = '';
+        
+        players.forEach((p) => {
+            const node = document.createElement('div');
+            node.id = `node-${p.id}`;
+            node.className = `player-node shadow-lg ${!p.isAlive ? 'dead' : ''}`;
+            
+            node.innerHTML = `
+                <div class="player-avatar w-14 h-14 bg-slate-700 rounded-full flex items-center justify-center border-2 border-slate-600 text-xl font-bold mb-3 shadow-inner text-white">
+                    ${p.name.charAt(0)}
+                </div>
+                <div class="text-center text-sm font-bold ${p.isMe ? 'text-blue-400' : 'text-slate-300'}">
+                    ${p.name}
+                </div>
+            `;
+            
+            node.addEventListener('click', () => handleNodeClick(p.id));
+            node.addEventListener('touchstart', () => handleNodeClick(p.id));
+            
+            container.appendChild(node);
+        });
+    }
+
+    function handleNodeClick(targetId) {
+        const targetPlayer = players.find(p => p.id === targetId);
+        const myPlayer = players.find(p => p.isMe);
+        
+        if (!targetPlayer.isAlive) return; 
+        if (!myPlayer.isAlive) return; 
+        if (targetPlayer.isMe) return; // Prevent self targeting ALWAYS
+        
+        if (currentPhase === 'night' && myPlayer.role !== 'mafia') return;
+        if (currentPhase !== 'night' && currentPhase !== 'voting') return;
+
+        selectedTargetId = targetId;
+        document.querySelectorAll('.player-node').forEach(n => n.classList.remove('selected'));
+        document.getElementById(`node-${targetId}`).classList.add('selected');
+        
+        const btn = document.getElementById('action-btn');
+        btn.classList.remove('opacity-50', 'pointer-events-none');
+        btn.classList.remove('bg-slate-600', 'bg-blue-600');
+        btn.classList.add('bg-red-600');
+        btn.querySelector('span').innerText = currentPhase === 'night' ? 'Hold to Kill' : 'Cast Vote';
+    }
+
+    // --- 5. PHASE & TIMER LOGIC ---
+
+    function startPhaseTimer(seconds, callback) {
+        clearInterval(timerInterval);
+        timeRemaining = seconds;
+        
+        const timerEl = document.getElementById('phase-timer');
+        timerEl.innerText = timeRemaining;
+        timerEl.classList.remove('hidden');
+
+        timerInterval = setInterval(() => {
+            timeRemaining--;
+            timerEl.innerText = timeRemaining;
+            
+            if (timeRemaining <= 0) {
+                clearInterval(timerInterval);
+                callback(); 
+            }
+        }, 1000);
+    }
+
+    function updateCenterConsole(title, desc, color, actionType) {
+        // Automatically hide the timer when the console updates. 
+        // startPhaseTimer() will unhide it if a new timer is needed.
+        document.getElementById('phase-timer').classList.add('hidden');
+        
+        document.getElementById('console-title').innerText = title;
+        document.getElementById('console-title').style.color = color;
+        document.getElementById('console-desc').innerText = desc;
+        
+        const actionBtn = document.getElementById('action-btn');
+        const nextBtn = document.getElementById('next-btn');
+        
+        actionBtn.classList.add('hidden');
+        nextBtn.classList.add('hidden');
+        nextBtn.classList.remove('opacity-50', 'pointer-events-none');
+        
+        if (actionType === 'hold_sleep') {
+            actionBtn.classList.remove('hidden', 'bg-red-600', 'bg-slate-600', 'opacity-50', 'pointer-events-none');
+            actionBtn.classList.add('bg-blue-600');
+            actionBtn.querySelector('span').innerText = 'Hold to Sleep';
+        } else if (actionType === 'hold_target') {
+            actionBtn.classList.remove('hidden', 'opacity-50', 'pointer-events-none', 'bg-slate-600', 'bg-red-600', 'bg-blue-600');
+            actionBtn.classList.add('opacity-50', 'pointer-events-none', 'bg-slate-600'); 
+            actionBtn.querySelector('span').innerText = 'Select a Target';
+        } else if (actionType === 'dead_night') {
+            nextBtn.classList.remove('hidden');
+            nextBtn.innerText = 'Skip Night';
+            nextBtn.onclick = () => {
+                nextBtn.classList.add('opacity-50', 'pointer-events-none');
+                processNightMock(); // Immediately trigger processing
+            };
+        } else if (actionType === 'dead_vote') {
+            nextBtn.classList.remove('hidden');
+            nextBtn.innerText = 'Skip Voting';
+            nextBtn.onclick = () => {
+                nextBtn.classList.add('opacity-50', 'pointer-events-none');
+                processVotingMock(); // Immediately trigger processing
+            };
+        }
+    }
+
+    function startNightPhase() {
+        currentPhase = 'night';
+        selectedTargetId = null;
+        document.getElementById('bottom-console').style.borderColor = '#1e1b4b'; 
+        
+        document.querySelectorAll('.player-node').forEach(n => {
+            n.classList.remove('selected', 'selectable');
+        });
+        
+        const myPlayer = players.find(p => p.isMe);
+        
+        if (!myPlayer.isAlive) {
+            updateCenterConsole('NIGHT PHASE', 'You are dead. Wait for morning.', '#6b7280', 'dead_night');
+        } else if (myPlayer.role === 'mafia') {
+            updateCenterConsole('NIGHT PHASE', 'Tap a player to target them.', '#60a5fa', 'hold_target');
+            players.filter(p => p.isAlive && !p.isMe).forEach(p => {
+                document.getElementById(`node-${p.id}`).classList.add('selectable');
+            });
+        } else {
+            updateCenterConsole('NIGHT PHASE', 'It is dangerous outside.', '#60a5fa', 'hold_sleep');
+        }
+
+        startPhaseTimer(15, processNightMock);
+    }
+
+    function startVotingPhase(killedPlayerId) {
+        currentPhase = 'voting';
+        selectedTargetId = null;
+        document.getElementById('bottom-console').style.borderColor = '#b45309'; 
+        
+        document.querySelectorAll('.player-node').forEach(n => n.classList.remove('selected', 'selectable'));
+        
+        let desc = "Nobody died last night. Discuss and cast your vote.";
+        if (killedPlayerId) {
+            const victim = players.find(p => p.id === killedPlayerId);
+            victim.isAlive = false;
+            document.getElementById(`node-${victim.id}`).classList.add('dead');
+            
+            const displayRole = victim.role.charAt(0).toUpperCase() + victim.role.slice(1);
+            desc = `${victim.name} (The ${displayRole}) was eliminated. Cast your vote!`;
+        }
+        
+        if (checkWinCondition()) return;
+        
+        const myPlayer = players.find(p => p.isMe);
+        
+        if (!myPlayer.isAlive) {
+            updateCenterConsole('EMERGENCY MEETING', desc + ' You are dead.', '#6b7280', 'dead_vote');
+        } else {
+            updateCenterConsole('EMERGENCY MEETING', desc, '#ef4444', 'hold_target');
+            // Selectable filters out dead people AND self
+            players.filter(p => p.isAlive && !p.isMe).forEach(p => {
+                document.getElementById(`node-${p.id}`).classList.add('selectable');
+            });
+        }
+
+        startPhaseTimer(votingTimeLimit, processVotingMock);
+    }
+
+    // --- 6. ACTION PROCESSING (MOCK BACKEND) ---
+
+    const actionBtn = document.getElementById('action-btn');
+    
+    function startHold(e) {
+        if(e.cancelable) e.preventDefault();
+        if (actionBtn.classList.contains('pointer-events-none')) return;
+        
+        // Voting phase is just a TAP, not a hold
+        if (currentPhase === 'voting') {
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]); 
+            executeAction();
+            return;
+        }
+
+        actionBtn.classList.add('holding');
+        if (navigator.vibrate) navigator.vibrate(50);
+        
+        holdTimeout = setTimeout(() => {
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]); 
+            executeAction();
+        }, 1500); 
+    }
+    
+    function cancelHold(e) {
+        if(e.cancelable) e.preventDefault();
+        actionBtn.classList.remove('holding');
+        clearTimeout(holdTimeout);
+    }
+
+    actionBtn.addEventListener('touchstart', startHold, { passive: false });
+    actionBtn.addEventListener('touchend', cancelHold);
+    actionBtn.addEventListener('touchcancel', cancelHold);
+    actionBtn.addEventListener('mousedown', startHold);
+    actionBtn.addEventListener('mouseup', cancelHold);
+    actionBtn.addEventListener('mouseleave', cancelHold);
+    actionBtn.addEventListener('contextmenu', e => e.preventDefault());
+
+    function executeAction() {
+        actionBtn.classList.remove('holding');
+        actionBtn.classList.add('opacity-50', 'pointer-events-none');
+        actionBtn.querySelector('span').innerText = 'Locked In';
+    }
+
+    function processNightMock() {
+        clearInterval(timerInterval); // Stop timer if triggered by 'Skip'
+        const myPlayer = players.find(p => p.isMe);
+        let killedId = null;
+        
+        if (myPlayer.isAlive && myPlayer.role === 'mafia') {
+            killedId = selectedTargetId;
+        } else {
+            // Find a bot mafia to kill someone (excluding themselves)
+            const aliveBots = players.filter(p => p.isAlive && !p.isMe);
+            const mafiaBot = aliveBots.find(p => p.role === 'mafia');
+            if (mafiaBot) {
+                const validTargets = players.filter(p => p.isAlive && p.id !== mafiaBot.id);
+                if (validTargets.length > 0) {
+                    killedId = validTargets[Math.floor(Math.random() * validTargets.length)].id;
+                }
+            }
+        }
+        
+        startVotingPhase(killedId);
+    }
+
+    function processVotingMock() {
+        clearInterval(timerInterval); // Stop timer if triggered by 'Skip'
+        currentPhase = 'results'; 
+        let voteCounts = {};
+        players.forEach(p => { if (p.isAlive) voteCounts[p.id] = 0; });
+        
+        const myPlayer = players.find(p => p.isMe);
+        
+        // 1. Add human's vote
+        if (myPlayer.isAlive && selectedTargetId) voteCounts[selectedTargetId]++;
+        
+        // 2. Bots vote randomly (but never for themselves)
+        players.filter(p => p.isAlive && !p.isMe).forEach(bot => {
+            const validTargets = players.filter(p => p.isAlive && p.id !== bot.id);
+            if(validTargets.length > 0) {
+                const randomTarget = validTargets[Math.floor(Math.random() * validTargets.length)];
+                voteCounts[randomTarget.id]++;
+            }
+        });
+        
+        // 3. Find the maximum and check for ties
+        let maxVotes = 0;
+        let executedId = null;
+        let isTie = false;
+
+        for (const [id, count] of Object.entries(voteCounts)) {
+            if (count > maxVotes) {
+                maxVotes = count;
+                executedId = parseInt(id);
+                isTie = false;
+            } else if (count === maxVotes && count > 0) {
+                isTie = true;
+            }
+        }
+        
+        let executionMsg = "";
+        
+        // Execute the player if no tie
+        if (executedId && !isTie) {
+            const victim = players.find(p => p.id === executedId);
+            victim.isAlive = false;
+            document.getElementById(`node-${victim.id}`).classList.add('dead');
+            
+            const displayRole = victim.role.charAt(0).toUpperCase() + victim.role.slice(1);
+            executionMsg = `${victim.name} (The ${displayRole}) received ${maxVotes} votes and was executed.`;
+            updateCenterConsole('VOTING CONCLUDED', executionMsg, '#ef4444', 'none');
+        } else {
+            executionMsg = 'Votes were tied or skipped. Nobody was executed.';
+            updateCenterConsole('VOTING CONCLUDED', executionMsg, '#ef4444', 'none');
+        }
+        
+        // Pass the execution message so it isn't lost if the game ends instantly
+        if (checkWinCondition(executionMsg)) return;
+
+        // Give players 8 seconds to read the vote results before night falls
+        startPhaseTimer(8, startNightPhase);
+    }
+
+    function checkWinCondition(executionMsg = "") {
+        const alivePlayers = players.filter(p => p.isAlive);
+        const aliveMafia = alivePlayers.filter(p => p.role === 'mafia').length;
+        const aliveVillagers = alivePlayers.filter(p => p.role === 'villager').length;
+        
+        const prefix = executionMsg ? executionMsg + "\n\n" : "";
+        
+        if (aliveMafia === 0) {
+            const mafiaPlayer = players.find(p => p.role === 'mafia');
+            const mafiaName = mafiaPlayer ? mafiaPlayer.name : "Someone";
+            endGame("VILLAGERS WIN", `${prefix}'${mafiaName}' was the mafia! The town is safe.`, "text-blue-500");
+            return true;
+        } else if (aliveMafia >= aliveVillagers) {
+            endGame("MAFIA WINS", `${prefix}The Mafia overran the town.`, "text-red-500");
+            return true;
+        }
+        return false;
+    }
+
+    function endGame(title, desc, colorClass) {
+        clearInterval(timerInterval); 
+        showScreen('screen-result');
+        document.getElementById('result-title').innerText = title;
+        document.getElementById('result-title').className = `text-5xl font-black mb-4 ${colorClass}`;
+        document.getElementById('result-desc').innerText = desc;
+    }
+
+    // Utility
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => {
+            s.classList.remove('active', 'flex');
+            s.style.display = ''; // Clear any inline styles causing the stacking bug
+        });
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    // Init
+    renderLobby();
+
+</script>
 </body>
 </html>
